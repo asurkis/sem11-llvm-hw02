@@ -21,13 +21,25 @@ class MyPass : public PassInfoMixin<MyPass> {
         FunctionType *logFnT = FunctionType::get(retType, logParamTypes, false);
         FunctionCallee logBeginFn
             = F.getParent()->getOrInsertFunction("fnLogBegin", logFnT);
+        FunctionCallee logEndFn
+            = F.getParent()->getOrInsertFunction("fnLogEnd", logFnT);
 
         BasicBlock &entryBB = F.getEntryBlock();
         builder.SetInsertPoint(&entryBB.front());
+
         Value *fnName = builder.CreateGlobalStringPtr(F.getName());
         Value *args[] = {fnName};
 
         builder.CreateCall(logBeginFn, args);
+
+        for (BasicBlock &bb : F) {
+            for (Instruction &inst : bb) {
+                if (auto *ret = dyn_cast<ReturnInst>(&inst)) {
+                    builder.SetInsertPoint(ret);
+                    builder.CreateCall(logEndFn, args);
+                }
+            }
+        }
 
         return PreservedAnalyses::all();
     }
