@@ -8,6 +8,7 @@ using namespace llvm;
 class MyPass : public PassInfoMixin<MyPass> {
   public:
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+        Module *module = F.getParent();
         outs() << "Processing " << F.getName() << "\n";
         LLVMContext &Ctx = F.getContext();
         IRBuilder<> builder(Ctx);
@@ -17,35 +18,45 @@ class MyPass : public PassInfoMixin<MyPass> {
         Type *intT = Type::getInt32Ty(Ctx);
         PointerType *pCharT = builder.getInt8PtrTy();
 
-        Type *logParamTypes[] = {pCharT, pCharT, intT};
+        Type *logParamTypes[] = {pCharT};
         FunctionType *logFnT = FunctionType::get(retType, logParamTypes, false);
-        FunctionCallee logBeginFn
-            = F.getParent()->getOrInsertFunction("fnLogBegin", logFnT);
-        FunctionCallee logEndFn
-            = F.getParent()->getOrInsertFunction("fnLogEnd", logFnT);
+        FunctionCallee logFn = module->getOrInsertFunction("logInstr", logFnT);
 
         BasicBlock &entryBB = F.getEntryBlock();
         builder.SetInsertPoint(&entryBB.front());
-
         Value *fnName = builder.CreateGlobalStringPtr(F.getName());
+        builder.ClearInsertionPoint();
+
         Value *args[] = {fnName};
 
-        builder.CreateCall(logBeginFn, args);
+        // builder.CreateCall(logFn, args);
 
         for (BasicBlock &bb : F) {
-            for (Instruction &inst : bb) {
-                if (auto *ret = dyn_cast<ReturnInst>(&inst)) {
-                    builder.SetInsertPoint(ret);
-                    builder.CreateCall(logEndFn, args);
+            // outs() << "Successfully iterated block\n";
+            for (Instruction &instr : bb) {
+                if (!logFn) {
+                    continue;
                 }
-            }
-        }
 
-        return PreservedAnalyses::all();
+                // outs() << "Successfully iterated instruction\n";
+                outs() << "Processing instruction " << instr << " of type "
+                       << instr.getOpcode() << '\n';
+                instr.getOpcodeName();
+                // outs() << "Trying to create call\n";
+                builder.SetInsertPoint(&instr);
+                builder.CreateCall(logFn, args);
+                builder.ClearInsertionPoint();
+                outs() << "    Successfully created call\n";
+            }
+            // outs() << "Successfully exited instruction loop\n";
+        }
+        outs() << "Successfully exited block loop\n";
+
+        return PreservedAnalyses::none();
     }
 };
 
-static void passBuilderCB(PassBuilder &PB) {
+void passBuilderCB(PassBuilder &PB) {
     PB.registerVectorizerStartEPCallback(
         [](FunctionPassManager &FPM, OptimizationLevel) {
             FPM.addPass(MyPass());

@@ -4,7 +4,7 @@ int BUF[2][SIM_X_SIZE * SIM_Y_SIZE];
 int *board = BUF[0];
 int *board_next = BUF[1];
 
-static int calcNeighbors(int row, int col) {
+int calcNeighbors(int row, int col) {
         int result = 0;
         for (int d_row = -1; d_row <= 1; ++d_row) {
                 for (int d_col = -1; d_col <= 1; ++d_col) {
@@ -20,7 +20,7 @@ static int calcNeighbors(int row, int col) {
         return result;
 }
 
-static void fillNextState() {
+void fillNextState() {
         for (int row = 0; row < SIM_Y_SIZE; ++row) {
                 for (int col = 0; col < SIM_X_SIZE; ++col) {
                         int neighbors = calcNeighbors(row, col);
@@ -37,7 +37,7 @@ static void fillNextState() {
         }
 }
 
-static void initBoard() {
+void initBoard() {
         // Add a glider
         board[1] = 1;
         board[2 + SIM_X_SIZE] = 1;
