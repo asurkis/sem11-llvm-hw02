@@ -2,6 +2,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/Instructions.h>
 
 using namespace llvm;
 
@@ -18,39 +19,35 @@ class MyPass : public PassInfoMixin<MyPass> {
         Type *intT = Type::getInt32Ty(Ctx);
         PointerType *pCharT = builder.getInt8PtrTy();
 
-        Type *logParamTypes[] = {pCharT};
+        Type *logParamTypes[] = {pCharT, pCharT};
         FunctionType *logFnT = FunctionType::get(retType, logParamTypes, false);
-        FunctionCallee logFn = module->getOrInsertFunction("logInstr", logFnT);
-
-        BasicBlock &entryBB = F.getEntryBlock();
-        builder.SetInsertPoint(&entryBB.front());
-        Value *fnName = builder.CreateGlobalStringPtr(F.getName());
-        builder.ClearInsertionPoint();
-
-        Value *args[] = {fnName};
-
-        // builder.CreateCall(logFn, args);
+        FunctionCallee logFn = module->getOrInsertFunction("logUse", logFnT);
 
         for (BasicBlock &bb : F) {
-            // outs() << "Successfully iterated block\n";
-            for (Instruction &instr : bb) {
-                if (!logFn) {
+            for (Instruction &instr1 : bb) {
+                if (dyn_cast<PHINode>(&instr1)) {
                     continue;
                 }
+                builder.SetInsertPoint(&instr1);
 
-                // outs() << "Successfully iterated instruction\n";
-                outs() << "Processing instruction " << instr << " of type "
-                       << instr.getOpcode() << '\n';
-                instr.getOpcodeName();
-                // outs() << "Trying to create call\n";
-                builder.SetInsertPoint(&instr);
-                builder.CreateCall(logFn, args);
-                builder.ClearInsertionPoint();
-                outs() << "    Successfully created call\n";
+                Value *opName1
+                    = builder.CreateGlobalStringPtr(instr1.getOpcodeName());
+
+                for (User *user : instr1.users()) {
+                    if (auto *pInstr2 = dyn_cast<Instruction>(user)) {
+                        if (pInstr2 == &instr1) {
+                            continue;
+                        }
+                        // outs() << instr1 << " used by " << *pInstr2 << '\n';
+                        builder.SetInsertPoint(&instr1);
+                        Value *opName2 = builder.CreateGlobalStringPtr(
+                            pInstr2->getOpcodeName());
+                        Value *args[] = {opName2, opName1};
+                        builder.CreateCall(logFn, args);
+                    }
+                }
             }
-            // outs() << "Successfully exited instruction loop\n";
         }
-        outs() << "Successfully exited block loop\n";
 
         return PreservedAnalyses::none();
     }
